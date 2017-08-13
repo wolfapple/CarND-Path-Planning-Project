@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include "vehicle.h"
 
 using namespace std;
 
@@ -197,10 +198,9 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  int lane = 1;
   double ref_vel = 0.0;
 
-  h.onMessage([&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -241,34 +241,36 @@ int main() {
 
           if (prev_size > 0) {
             car_s = end_path_s;
-          }
-          bool too_close = false;
-          // find ref_v to use
+          }          
+          // add ego
+          Vehicle ego = Vehicle(car_d / 4, car_s, ref_vel, 0);
+          ego.configure({49.5, 3, 11, 0, 0});
+          // add other vehicles
+          map<int, Vehicle> vehicles;
           for (int i=0; i < sensor_fusion.size(); i++) {
-            // in my lane?
+            int id = sensor_fusion[i][0];
             double d = sensor_fusion[i][6];
-            if (d < (2+4*lane+2) && d > (2+4*lane-2)) {
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx*vx+vy*vy);
-              double check_car_s = sensor_fusion[i][5];
-
-              check_car_s += ((double)prev_size * 0.02 * check_speed);
-              if (check_car_s > car_s && check_car_s - car_s < 30) {
-                too_close = true;
-                if (lane > 0) {
-                  lane = 0;
-                }
-              }
-            }
+            int lane = d / 4;
+            double s = sensor_fusion[i][5];
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double v = sqrt(vx*vx+vy*vy);            
+            Vehicle vehicle = Vehicle(lane, s, v, 0);
+            vehicles.insert(std::pair<int, Vehicle>(id, vehicle));
           }
-
-          if (too_close) {
-            ref_vel -= .224;
+          // prediction
+          map<int ,vector<vector<double>>> predictions;
+          map<int,Vehicle>::iterator it = vehicles.begin();
+          while(it != vehicles.end()) {
+            int v_id = it->first;
+            vector<vector<double>> preds = it->second.generate_predictions(3);
+            predictions[v_id] = preds;
+            it++;
           }
-          else if(ref_vel < 49.5) {
-            ref_vel += .224;
-          }
+          ego.update_state(predictions);
+          ego.realize_state(predictions);
+          ego.increment(0.02);
+          ref_vel = ego.v;
 
           // create a list of widely spaced (x,y) waypoints
           vector<double> ptsx;
@@ -301,9 +303,9 @@ int main() {
             ptsy.push_back(ref_y);
           }
           // waypoints
-          vector<double> next_wp0 = getXY(car_s+30, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s+60, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s+90, 2+4*lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0 = getXY(car_s+30, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s+90, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);
