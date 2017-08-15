@@ -14,12 +14,9 @@ using namespace std;
 
 class Vehicle {
 public:
-
-  struct collider{
-
+  struct collider {
     bool collision ; // is there a collision?
     int  time; // time collision happens
-
   };
 
   int L = 1;
@@ -38,13 +35,17 @@ public:
 
   int lanes_available;
 
-  double max_acceleration;
-
-  int goal_lane;
-
-  int goal_s;
+  double max_acceleration;  
 
   string state;
+
+  struct SnapShot {
+    int lane;
+    double s;
+    double v;
+    double a;
+    string state;
+  };
 
   /**
   * Constructor
@@ -72,7 +73,7 @@ public:
 
   void realize_constant_speed();
 
-  double _max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, int s);
+  double _max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, double s);
 
   void realize_keep_lane(map<int, vector< vector<double> > > predictions);
 
@@ -82,6 +83,19 @@ public:
 
   vector<vector<double> > generate_predictions(int horizon);
 
+private:
+  vector<SnapShot> trajectory_for_state(string state, map<int, vector < vector<double> > >  predictions, int horizon = 3);
+  
+  inline SnapShot snapshot(){
+    return {lane,s,v,a,state};
+  }
+  inline void restore_from_snapshot(SnapShot snapshot){
+    lane = snapshot.lane;
+    s = snapshot.s;
+    v = snapshot.v;
+    a = snapshot.a;
+    state = snapshot.state;
+  }
 };
 
 #endif

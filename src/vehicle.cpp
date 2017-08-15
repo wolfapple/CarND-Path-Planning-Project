@@ -5,69 +5,95 @@
 #include <map>
 #include <string>
 #include <iterator>
+#include "cost.h"
 
 /**
  * Initializes Vehicle
  */
 Vehicle::Vehicle(int lane, double s, double v, double a) {
-    this->lane = lane;
-    this->s = s;
-    this->v = v;
-    this->a = a;
-    state = "CS";
-    max_acceleration = -1;
+  this->lane = lane;
+  this->s = s;
+  this->v = v;
+  this->a = a;
+  state = "CS";
+  max_acceleration = -1;
 }
 
 Vehicle::~Vehicle() {}
 
-// TODO - Implement this method.
 void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
 	/*
-    Updates the "state" of the vehicle by assigning one of the
-    following values to 'self.state':
+  Updates the "state" of the vehicle by assigning one of the
+  following values to 'self.state':
 
-    "KL" - Keep Lane
-     - The vehicle will attempt to drive its target speed, unless there is 
-       traffic in front of it, in which case it will slow down.
+  "KL" - Keep Lane
+    - The vehicle will attempt to drive its target speed, unless there is 
+      traffic in front of it, in which case it will slow down.
 
-    "LCL" or "LCR" - Lane Change Left / Right
-     - The vehicle will IMMEDIATELY change lanes and then follow longitudinal
-       behavior for the "KL" state in the new lane.
+  "LCL" or "LCR" - Lane Change Left / Right
+    - The vehicle will IMMEDIATELY change lanes and then follow longitudinal
+      behavior for the "KL" state in the new lane.
 
-    "PLCL" or "PLCR" - Prepare for Lane Change Left / Right
-     - The vehicle will find the nearest vehicle in the adjacent lane which is
-       BEHIND itself and will adjust speed to try to get behind that vehicle.
+  "PLCL" or "PLCR" - Prepare for Lane Change Left / Right
+    - The vehicle will find the nearest vehicle in the adjacent lane which is
+      BEHIND itself and will adjust speed to try to get behind that vehicle.
 
-    INPUTS
-    - predictions 
-    A dictionary. The keys are ids of other vehicles and the values are arrays
-    where each entry corresponds to the vehicle's predicted location at the 
-    corresponding timestep. The FIRST element in the array gives the vehicle's
-    current position. Example (showing a car with id 3 moving at 2 m/s):
+  INPUTS
+  - predictions 
+  A dictionary. The keys are ids of other vehicles and the values are arrays
+  where each entry corresponds to the vehicle's predicted location at the 
+  corresponding timestep. The FIRST element in the array gives the vehicle's
+  current position. Example (showing a car with id 3 moving at 2 m/s):
 
-    {
-      3 : [
-        {"s" : 4, "lane": 0},
-        {"s" : 6, "lane": 0},
-        {"s" : 8, "lane": 0},
-        {"s" : 10, "lane": 0},
-      ]
+  {
+    3 : [
+      {"s" : 4, "lane": 0},
+      {"s" : 6, "lane": 0},
+      {"s" : 8, "lane": 0},
+      {"s" : 10, "lane": 0},
+    ]
+  }
+
+  */
+  vector<string> states = {"KL", "LCR", "LCL"};
+  if (this->lane == 0) states = {"KL", "LCR"};
+  if (this->lane == this->lanes_available - 1) states = {"KL", "LCL"};
+
+  double min_cost = 999999999;
+  for (int i=0; i < states.size(); i++) {
+    vector<SnapShot> trajectory = trajectory_for_state(state, predictions, 3);
+    double cost = calculate_cost(*this, trajectory, predictions);
+    if (cost < min_cost) {
+      min_cost = cost;
+      this->state = states[i];
     }
+  }
+}
 
-    */
-    state = "KL"; // this is an example of how you change state.
+vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, vector < vector<double> > >  predictions, int horizon) {
+  vector<Vehicle::SnapShot> trajectory;
+  SnapShot snapshot = this->snapshot();
+  trajectory.push_back(snapshot);
+  this->state = state;
+  
+  for(int t = 0; t < horizon; t++) {
+    this->realize_state(predictions);
+    this->increment(1);
+    trajectory.push_back(this->snapshot());
+  }
+  
+  this->restore_from_snapshot(snapshot);
+  return trajectory;
 }
 
 void Vehicle::configure(vector<double> road_data) {
 	/*
-    Called by simulator before simulation begins. Sets various
-    parameters which will impact the ego vehicle. 
-    */
-    target_speed = road_data[0];
-    // lanes_available = road_data[1];
-    max_acceleration = road_data[2];
-    // goal_lane = road_data[3];
-    // goal_s = road_data[4];
+  Called by simulator before simulation begins. Sets various
+  parameters which will impact the ego vehicle. 
+  */
+  target_speed = road_data[0];
+  lanes_available = road_data[1];
+  max_acceleration = road_data[2];    
 }
 
 void Vehicle::increment(double dt = 1) {
@@ -138,14 +164,14 @@ void Vehicle::realize_constant_speed() {
 	a = 0;
 }
 
-double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, int s) {
+double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > predictions, int lane, double s) {
 	double delta_v_til_target = target_speed - v;
   double max_acc = min(max_acceleration, delta_v_til_target);
 
   map<int, vector<vector<double> > >::iterator it = predictions.begin();
   vector<vector<vector<double> > > in_front;
   while(it != predictions.end()) {
-    int v_id = it->first;    
+    int v_id = it->first;
     vector<vector<double> > v = it->second;
     if((v[0][0] == lane) && (v[0][1] > s)) {
       in_front.push_back(v);

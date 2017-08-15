@@ -198,9 +198,11 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  double ref_vel = 0.0;
+  Vehicle ego = Vehicle(0, 0, 0, 0);
+  ego.configure({49.5, 3, 11});
+  ego.state = "KL";
 
-  h.onMessage([&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&ego,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -242,9 +244,9 @@ int main() {
           if (prev_size > 0) {
             car_s = end_path_s;
           }          
-          // add ego
-          Vehicle ego = Vehicle(car_d / 4, car_s, ref_vel, 0);
-          ego.configure({49.5, 3, 11, 0, 0});
+          // updat egg
+          ego.lane = car_d / 4;
+          ego.s = car_s;
           // add other vehicles
           map<int, Vehicle> vehicles;
           for (int i=0; i < sensor_fusion.size(); i++) {
@@ -266,12 +268,11 @@ int main() {
             vector<vector<double>> preds = it->second.generate_predictions(3);
             predictions[v_id] = preds;
             it++;
-          }
+          }          
           ego.update_state(predictions);
           ego.realize_state(predictions);
           ego.increment(0.02);
-          ref_vel = ego.v;
-
+          
           // create a list of widely spaced (x,y) waypoints
           vector<double> ptsx;
           vector<double> ptsy;
@@ -339,7 +340,7 @@ int main() {
           double x_add_on = 0;
           // the rest of our path
           for (int i=0; i <= 50-prev_size; i++) {
-            double N = target_dist / (0.02*ref_vel/2.24);
+            double N = target_dist / (0.02*ego.v/2.24);
             double x_point = x_add_on + (target_x/N);
             double y_point = s(x_point);
 
