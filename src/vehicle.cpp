@@ -55,31 +55,55 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
   }
 
   */
-  vector<string> states = {"KL", "LCR", "LCL"};
-  if (this->lane == 0) states = {"KL", "LCR"};
-  if (this->lane == this->lanes_available - 1) states = {"KL", "LCL"};
+  vector<string> states;
+  if (this->state == "KL") {
+    states = {"KL", "PLCL", "PLCR"};
+  }
+  if (this->state == "PLCL") {
+    states = {"LCL", "KL"};
+  }
+  if (this->state == "PLCR") {
+    states = {"LCR", "KL"};
+  }
+  if (this->state == "LCL") {
+    states = {"PLCL", "KL"};
+  }
+  if (this->state == "LCR") {
+    states = {"PLCR", "KL"};
+  }
 
-  double min_cost = 999999999;
+  double min_cost = numeric_limits<double>::max();
   for (int i=0; i < states.size(); i++) {
-    vector<SnapShot> trajectory = trajectory_for_state(state, predictions, 3);
+    vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 3);
     double cost = calculate_cost(*this, trajectory, predictions);
+    cout << states[i] << ": " << cost << endl;
     if (cost < min_cost) {
       min_cost = cost;
       this->state = states[i];
     }
-  }
+  }  
 }
 
-vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, vector < vector<double> > >  predictions, int horizon) {
-  vector<Vehicle::SnapShot> trajectory;
+vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, vector < vector<double> > > predictions, int horizon) {
+  // remember current state
   SnapShot snapshot = this->snapshot();
-  trajectory.push_back(snapshot);
+  // pretend to be in new proposed state
   this->state = state;
+  vector<Vehicle::SnapShot> trajectory;  
+  trajectory.push_back(snapshot);
   
-  for(int t = 0; t < horizon; t++) {
+  for(int t=0; t < horizon; t++) {
+    this->restore_from_snapshot(snapshot);
+    this->state = state;
     this->realize_state(predictions);
     this->increment(1);
     trajectory.push_back(this->snapshot());
+    // need to remove first prediction for each vehicle
+    map<int, vector<vector<double> > >::iterator it = predictions.begin();
+    while(it != predictions.end()) {
+      it->second.erase(it->second.begin());
+      it++;
+    }
   }
   
   this->restore_from_snapshot(snapshot);
@@ -98,7 +122,7 @@ void Vehicle::configure(vector<double> road_data) {
 
 void Vehicle::increment(double dt = 1) {
 	this->s += this->v * dt;
-  this->v += this->a * dt;
+  if (this->v < this->target_speed) this->v += this->a * dt;
 }
 
 vector<double> Vehicle::state_at(double t) {
@@ -177,7 +201,7 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
       in_front.push_back(v);
     }
     it++;
-  }
+  }  
     
   if(in_front.size() > 0) {
     double min_s = 1000;
@@ -185,10 +209,10 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
     for(int i = 0; i < in_front.size(); i++) {
       if((in_front[i][0][1]-s) < min_s) {
         min_s = (in_front[i][0][1]-s);
-        leading = in_front[i];
+        leading = in_front[i];        
       }
     }
-    double next_pos = leading[1][1];
+    double next_pos = leading[2][1];
     double my_next = s + this->v;
     double separation_next = next_pos - my_next;
     double available_room = separation_next - preferred_buffer;
@@ -202,21 +226,20 @@ void Vehicle::realize_keep_lane(map<int,vector< vector<double> > > predictions) 
 }
 
 void Vehicle::realize_lane_change(map<int,vector< vector<double> > > predictions, string direction) {
-	int delta = -1;
-    if (direction.compare("L") == 0)
-    {
-    	delta = 1;
-    }
-    this->lane += delta;
-    int lane = this->lane;
-    int s = this->s;
-    this->a = _max_accel_for_lane(predictions, lane, s);
+	int delta = 1;
+  if (direction.compare("L") == 0) {
+    delta = -1;
+  }
+  this->lane += delta;
+  int lane = this->lane;
+  int s = this->s;
+  this->a = _max_accel_for_lane(predictions, lane, s);
 }
 
 void Vehicle::realize_prep_lane_change(map<int,vector<vector<double> > > predictions, string direction) {
-	int delta = -1;
+	int delta = 1;
   if (direction.compare("L") == 0) {
-    delta = 1;
+    delta = -1;
   }
   int lane = this->lane + delta;
 

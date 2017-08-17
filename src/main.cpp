@@ -198,8 +198,8 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  Vehicle ego = Vehicle(0, 0, 0, 0);
-  ego.configure({49.5, 3, 11});
+  Vehicle ego = Vehicle(1, 0, 0, 0);
+  ego.configure({50, 3, 20});
   ego.state = "KL";
 
   h.onMessage([&ego,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -241,12 +241,23 @@ int main() {
 
           int prev_size = previous_path_x.size();
 
-          if (prev_size > 0) {
+          // reference state
+          double ref_x = car_x;
+          double ref_y = car_y;
+          double ref_yaw = deg2rad(car_yaw);
+          
+          if(prev_size >= 2) {
+            ref_x = previous_path_x[prev_size-1];
+            double ref_x_prev = previous_path_x[prev_size-2];
+            ref_y = previous_path_y[prev_size-1];
+            double ref_y_prev = previous_path_y[prev_size-2];
+            ref_yaw = atan2(ref_y-ref_y_prev,ref_x-ref_x_prev);
             car_s = end_path_s;
-          }          
-          // updat egg
-          ego.lane = car_d / 4;
+            car_speed = (sqrt((ref_x-ref_x_prev)*(ref_x-ref_x_prev)+(ref_y-ref_y_prev)*(ref_y-ref_y_prev))/0.02)*2.24;
+          }
+          // update ego
           ego.s = car_s;
+          ego.v = car_speed;
           // add other vehicles
           map<int, Vehicle> vehicles;
           for (int i=0; i < sensor_fusion.size(); i++) {
@@ -265,21 +276,17 @@ int main() {
           map<int,Vehicle>::iterator it = vehicles.begin();
           while(it != vehicles.end()) {
             int v_id = it->first;
-            vector<vector<double>> preds = it->second.generate_predictions(3);
+            vector<vector<double>> preds = it->second.generate_predictions(5);
             predictions[v_id] = preds;
             it++;
-          }          
+          }
           ego.update_state(predictions);
-          ego.realize_state(predictions);
+          ego.realize_state(predictions);          
           ego.increment(0.02);
           
           // create a list of widely spaced (x,y) waypoints
           vector<double> ptsx;
-          vector<double> ptsy;
-          // reference state
-          double ref_x = car_x;
-          double ref_y = car_y;
-          double ref_yaw = deg2rad(car_yaw);
+          vector<double> ptsy;          
           // use the car as starting reference
           if (prev_size < 2) {
             double prev_car_x = car_x - cos(car_yaw);
@@ -292,21 +299,15 @@ int main() {
           }
           // use the previous path as starting reference
           else {
-            ref_x = previous_path_x[prev_size-1];
-            ref_y = previous_path_y[prev_size-1];
-            double ref_x_prev = previous_path_x[prev_size-2];
-            double ref_y_prev = previous_path_y[prev_size-2];
-            ref_yaw = atan2(ref_y-ref_y_prev, ref_x-ref_x_prev);
-
-            ptsx.push_back(ref_x_prev);
+            ptsx.push_back(previous_path_x[prev_size-2]);
             ptsx.push_back(ref_x);
-            ptsy.push_back(ref_y_prev);
+            ptsy.push_back(previous_path_y[prev_size-2]);
             ptsy.push_back(ref_y);
           }
           // waypoints
-          vector<double> next_wp0 = getXY(car_s+30, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s+90, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0 = getXY(car_s+20, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s+40, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);

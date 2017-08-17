@@ -17,8 +17,16 @@ struct TrajectoryData {
   double max_acceleration;
   double rms_acceleration;
   double closest_approach;
+  double end_distance_to_goal;
   Vehicle::collider collides;
 };
+
+double distance_from_goal_lane(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
+  double distance = max(abs(data.end_distance_to_goal), 1.0);
+  double time_to_goal = distance / data.avg_speed;
+  double cost = time_to_goal * REACH_GOAL;
+  return cost;
+}
 
 double change_lane_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
   int proposed_lane = data.proposed_lane;
@@ -90,8 +98,9 @@ bool check_collision(Vehicle::SnapShot snapshot, double s_previous, double s_now
 TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions) {
   Vehicle::SnapShot current = trajectory[0];
   Vehicle::SnapShot first = trajectory[1];
-  Vehicle::SnapShot last = trajectory[trajectory.size()-1];
+  Vehicle::SnapShot last = trajectory.back();
 
+  double end_distance_to_goal = 3000 - last.s;
   double dt = (double)trajectory.size();
   int proposed_lane = first.lane;
   double avg_speed = (last.s - current.s) / dt;
@@ -132,6 +141,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
   data.max_acceleration = max_accel;
   data.rms_acceleration = rms_accel;
   data.closest_approach = closest_approach;
+  data.end_distance_to_goal = end_distance_to_goal;
   data.collides = collider;
 
   return data;
@@ -140,6 +150,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
 double calculate_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions) {
   TrajectoryData data = get_helper_data(vehicle, trajectory, predictions);
   double cost = 0.0;
+  cost += distance_from_goal_lane(vehicle, trajectory, predictions, data);
   cost += inefficiency_cost(vehicle, trajectory, predictions, data);
   cost += collision_cost(vehicle, trajectory, predictions, data);
   cost += buffer_cost(vehicle, trajectory, predictions, data);
