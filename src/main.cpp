@@ -279,9 +279,9 @@ int main() {
             vector<vector<double>> preds = it->second.generate_predictions(5);
             predictions[v_id] = preds;
             it++;
-          }
-          ego.update_state(predictions);
-          ego.realize_state(predictions);          
+          }          
+          if (abs(car_d - end_path_d) < 2) ego.update_state(predictions);
+          ego.realize_state(predictions);
           ego.increment(0.02);
           
           // create a list of widely spaced (x,y) waypoints

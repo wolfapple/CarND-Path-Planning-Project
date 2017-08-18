@@ -73,10 +73,9 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
   }
 
   double min_cost = numeric_limits<double>::max();
-  for (int i=0; i < states.size(); i++) {
+  for (int i=0; i < states.size(); i++) {    
     vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 3);
     double cost = calculate_cost(*this, trajectory, predictions);
-    cout << states[i] << ": " << cost << endl;
     if (cost < min_cost) {
       min_cost = cost;
       this->state = states[i];
@@ -93,8 +92,8 @@ vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, v
   trajectory.push_back(snapshot);
   
   for(int t=0; t < horizon; t++) {
-    this->restore_from_snapshot(snapshot);
-    this->state = state;
+    // this->restore_from_snapshot(snapshot);
+    // this->state = state;
     this->realize_state(predictions);
     this->increment(1);
     trajectory.push_back(this->snapshot());
@@ -212,7 +211,7 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
         leading = in_front[i];        
       }
     }
-    double next_pos = leading[2][1];
+    double next_pos = leading[1][1];
     double my_next = s + this->v;
     double separation_next = next_pos - my_next;
     double available_room = separation_next - preferred_buffer;
