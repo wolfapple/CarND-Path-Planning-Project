@@ -56,28 +56,35 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
 
   */
   vector<string> states;
-  if (this->state == "KL") {
+  if (this->state == "KL") {    
     states = {"KL", "PLCL", "PLCR"};
+    if (this->lane == 0) states = {"KL", "PLCR"};
+    if (this->lane == this->lanes_available-1) states = {"KL", "PLCL"};
   }
   if (this->state == "PLCL") {
     states = {"LCL", "KL"};
+    if (this->lane == 0) states = {"KL"};
   }
   if (this->state == "PLCR") {
     states = {"LCR", "KL"};
+    if (this->lane == this->lanes_available-1) states = {"KL"};
   }
   if (this->state == "LCL") {
     states = {"PLCL", "KL"};
+    if (this->lane == 0) states = {"KL"};
   }
   if (this->state == "LCR") {
     states = {"PLCR", "KL"};
+    if (this->lane == this->lanes_available-1) states = {"KL"};
   }
 
   double min_cost = numeric_limits<double>::max();
-  for (int i=0; i < states.size(); i++) {    
-    vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 3);
+  for (int i=0; i < states.size(); i++) {
+    vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 5);
     double cost = calculate_cost(*this, trajectory, predictions);
     if (cost < min_cost) {
       min_cost = cost;
+      if (this->state != states[i]) cout << this->state << " -> " << states[i] << endl;
       this->state = states[i];
     }
   }  
@@ -88,12 +95,10 @@ vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, v
   SnapShot snapshot = this->snapshot();
   // pretend to be in new proposed state
   this->state = state;
-  vector<Vehicle::SnapShot> trajectory;  
+  vector<Vehicle::SnapShot> trajectory;
   trajectory.push_back(snapshot);
   
-  for(int t=0; t < horizon; t++) {
-    // this->restore_from_snapshot(snapshot);
-    // this->state = state;
+  for(int t=0; t < horizon; t++) {    
     this->realize_state(predictions);
     this->increment(1);
     trajectory.push_back(this->snapshot());
@@ -194,14 +199,13 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
   map<int, vector<vector<double> > >::iterator it = predictions.begin();
   vector<vector<vector<double> > > in_front;
   while(it != predictions.end()) {
-    int v_id = it->first;
     vector<vector<double> > v = it->second;
     if((v[0][0] == lane) && (v[0][1] > s)) {
       in_front.push_back(v);
     }
     it++;
-  }  
-    
+  }
+
   if(in_front.size() > 0) {
     double min_s = 1000;
     vector<vector<double>> leading = {};

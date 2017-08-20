@@ -276,11 +276,11 @@ int main() {
           map<int,Vehicle>::iterator it = vehicles.begin();
           while(it != vehicles.end()) {
             int v_id = it->first;
-            vector<vector<double>> preds = it->second.generate_predictions(5);
+            vector<vector<double>> preds = it->second.generate_predictions(10);
             predictions[v_id] = preds;
             it++;
-          }          
-          if (abs(car_d - end_path_d) < 2) ego.update_state(predictions);
+          }
+          if (abs(car_d - end_path_d) < 0.2) ego.update_state(predictions);
           ego.realize_state(predictions);
           ego.increment(0.02);
           
@@ -304,10 +304,10 @@ int main() {
             ptsy.push_back(previous_path_y[prev_size-2]);
             ptsy.push_back(ref_y);
           }
-          // waypoints
-          vector<double> next_wp0 = getXY(car_s+20, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s+40, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          // waypoints          
+          vector<double> next_wp0 = getXY(car_s+30, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s+90, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);

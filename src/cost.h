@@ -1,11 +1,11 @@
 #ifndef COST_H
 #define COST_H
 
-#define COLLISION   10e6
-#define DANGER      10e5
-#define COMFORT     10e4
-#define EFFICIENCY  10e2
-#define DESIRED_BUFFER 1.5
+#define COLLISION   5.0
+#define DANGER      3.0
+#define COMFORT     0.75
+#define EFFICIENCY  3.0
+#define DESIRED_BUFFER 0.03
 #define PLANNING_HORIZON 2
 
 #include "vehicle.h"
@@ -22,16 +22,20 @@ struct TrajectoryData {
 double change_lane_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
   int proposed_lane = data.proposed_lane;
 	int cur_lanes = trajectory[0].lane;
-  double cost = 0;
-  if (proposed_lane != cur_lanes) cost = COMFORT;
-  return cost;
+  // double cost = 0;
+  // if (proposed_lane != cur_lanes) cost = COMFORT;
+  // return cost;
+  double pct = (proposed_lane - cur_lanes) / (vehicle.lanes_available - 1);
+  return COMFORT * (1.0 - pct);
 }
 
 double inefficiency_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
-  double speed = data.avg_speed;  
+  double speed = data.avg_speed;
   double target_speed = vehicle.target_speed;
+  return target_speed - speed;
   double pct = (target_speed - speed) / target_speed;
-  return pct*pct*EFFICIENCY;
+  return EFFICIENCY * (1.0 - pct);
+  // return pct*pct*EFFICIENCY;
 }
 
 double collision_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
@@ -94,21 +98,18 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
   int proposed_lane = first.lane;
   double avg_speed = (last.s - current.s) / dt;  
 
-  vector<double> accels;
   double closest_approach = 999999;
-  double max_accel = -999999;
-  double rms_accels = 0; 
+  double max_accel = 0;
+  vector<double> rms_accels;
   Vehicle::collider collider;
   collider.collision = false;
   map<int,vector< vector<double> > > filtered = filter_predictions_by_lane(predictions, proposed_lane);
   for (int i=1;i < PLANNING_HORIZON + 1; i++) {
     Vehicle::SnapShot snapshot = trajectory[i];
-    accels.push_back(snapshot.a);
-    rms_accels += snapshot.a*snapshot.a;
-    if (snapshot.a > max_accel) max_accel = snapshot.a;
+    rms_accels.push_back(snapshot.a*snapshot.a);
+    if (abs(snapshot.a) > abs(max_accel)) max_accel = snapshot.a;
     map<int,vector< vector<double> > >::iterator it = filtered.begin();
     while(it != filtered.end()) {
-      int v_id = it->first;
       vector<vector<double> > v = it->second;
       vector<double> state = v[i];
       vector<double> last_state = v[i-1];
@@ -122,7 +123,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
       it++;
     }
   }
-  double rms_accel = rms_accels / accels.size();
+  double rms_accel = accumulate(rms_accels.begin(), rms_accels.end(), 0.0) / rms_accels.size();
 
   TrajectoryData data;
   data.proposed_lane = proposed_lane;
@@ -136,11 +137,11 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
 }
 
 double calculate_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions) {
-  TrajectoryData data = get_helper_data(vehicle, trajectory, predictions);  
+  TrajectoryData data = get_helper_data(vehicle, trajectory, predictions);
   double cost = 0.0;
   cost += inefficiency_cost(vehicle, trajectory, predictions, data);
-  cost += collision_cost(vehicle, trajectory, predictions, data);
-  cost += buffer_cost(vehicle, trajectory, predictions, data);
+  // cost += collision_cost(vehicle, trajectory, predictions, data);
+  // cost += buffer_cost(vehicle, trajectory, predictions, data);
   cost += change_lane_cost(vehicle, trajectory, predictions, data);
   return cost;
 }
