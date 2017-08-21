@@ -1,11 +1,12 @@
 #ifndef COST_H
 #define COST_H
 
-#define COLLISION   5.0
-#define DANGER      3.0
-#define COMFORT     0.75
-#define EFFICIENCY  3.0
-#define DESIRED_BUFFER 0.03
+#define COLLISION   10e6
+#define DANGER      10e5
+#define REACH_GOAL  10e5
+#define COMFORT     10e4
+#define EFFICIENCY  10e2
+#define DESIRED_BUFFER 1.0
 #define PLANNING_HORIZON 2
 
 #include "vehicle.h"
@@ -16,26 +17,30 @@ struct TrajectoryData {
   double max_acceleration;
   double rms_acceleration;
   double closest_approach;
+  double end_distance_to_goal;
   Vehicle::collider collides;
 };
 
 double change_lane_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
   int proposed_lane = data.proposed_lane;
 	int cur_lanes = trajectory[0].lane;
-  // double cost = 0;
-  // if (proposed_lane != cur_lanes) cost = COMFORT;
-  // return cost;
   double pct = (proposed_lane - cur_lanes) / (vehicle.lanes_available - 1);
   return COMFORT * (1.0 - pct);
+}
+
+double distance_from_goal(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
+  double distance = max(abs(data.end_distance_to_goal), 1.0);
+  double time_to_goal = double(distance) / data.avg_speed;
+  double multiplier = double(5 / time_to_goal);
+  return multiplier * REACH_GOAL;
 }
 
 double inefficiency_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
   double speed = data.avg_speed;
   double target_speed = vehicle.target_speed;
-  return target_speed - speed;
   double pct = (target_speed - speed) / target_speed;
-  return EFFICIENCY * (1.0 - pct);
   // return pct*pct*EFFICIENCY;
+  return pct;
 }
 
 double collision_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions, TrajectoryData data) {
@@ -94,6 +99,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
   Vehicle::SnapShot first = trajectory[1];
   Vehicle::SnapShot last = trajectory.back();
 
+  double end_distance_to_goal = 6945.554 - last.s;
   double dt = (double)trajectory.size();
   int proposed_lane = first.lane;
   double avg_speed = (last.s - current.s) / dt;  
@@ -131,6 +137,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
   data.max_acceleration = max_accel;
   data.rms_acceleration = rms_accel;
   data.closest_approach = closest_approach;
+  data.end_distance_to_goal = end_distance_to_goal;
   data.collides = collider;
 
   return data;
@@ -139,10 +146,11 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
 double calculate_cost(Vehicle vehicle, vector<Vehicle::SnapShot> trajectory, map<int,vector< vector<double> > > predictions) {
   TrajectoryData data = get_helper_data(vehicle, trajectory, predictions);
   double cost = 0.0;
+  // cost += distance_from_goal(vehicle, trajectory, predictions, data);
   cost += inefficiency_cost(vehicle, trajectory, predictions, data);
   // cost += collision_cost(vehicle, trajectory, predictions, data);
   // cost += buffer_cost(vehicle, trajectory, predictions, data);
-  cost += change_lane_cost(vehicle, trajectory, predictions, data);
+  // cost += change_lane_cost(vehicle, trajectory, predictions, data);
   return cost;
 }
 

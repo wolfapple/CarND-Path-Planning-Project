@@ -56,7 +56,7 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
 
   */
   vector<string> states;
-  if (this->state == "KL") {    
+  if (this->state == "KL") {
     states = {"KL", "PLCL", "PLCR"};
     if (this->lane == 0) states = {"KL", "PLCR"};
     if (this->lane == this->lanes_available-1) states = {"KL", "PLCL"};
@@ -82,12 +82,12 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
   for (int i=0; i < states.size(); i++) {
     vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 5);
     double cost = calculate_cost(*this, trajectory, predictions);
+    cout << states[i] << ": " << trajectory.back().v << endl;
     if (cost < min_cost) {
       min_cost = cost;
-      if (this->state != states[i]) cout << this->state << " -> " << states[i] << endl;
       this->state = states[i];
     }
-  }  
+  }
 }
 
 vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, vector < vector<double> > > predictions, int horizon) {
@@ -98,9 +98,11 @@ vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, v
   vector<Vehicle::SnapShot> trajectory;
   trajectory.push_back(snapshot);
   
-  for(int t=0; t < horizon; t++) {    
+  for(int t=0; t < horizon; t++) {
+    this->restore_from_snapshot(snapshot);
+    this->state = state;
     this->realize_state(predictions);
-    this->increment(1);
+    this->increment(0.02);
     trajectory.push_back(this->snapshot());
     // need to remove first prediction for each vehicle
     map<int, vector<vector<double> > >::iterator it = predictions.begin();
@@ -121,12 +123,13 @@ void Vehicle::configure(vector<double> road_data) {
   */
   target_speed = road_data[0];
   lanes_available = road_data[1];
-  max_acceleration = road_data[2];    
+  max_acceleration = road_data[2];
 }
 
 void Vehicle::increment(double dt = 1) {
-	this->s += this->v * dt;
-  if (this->v < this->target_speed) this->v += this->a * dt;
+	this->s += this->v * dt + this->a * dt * dt / 2;
+  this->v += this->a * dt;
+  if (this->v > this->target_speed) this->v = this->target_speed;
 }
 
 vector<double> Vehicle::state_at(double t) {
@@ -135,6 +138,7 @@ vector<double> Vehicle::state_at(double t) {
   */
   double s = this->s + this->v * t + this->a * t * t / 2;
   double v = this->v + this->a * t;
+  if (this->v > this->target_speed) this->v = this->target_speed;
   return {(double)this->lane, s, v, this->a};
 }
 
@@ -216,8 +220,8 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
       }
     }
     double next_pos = leading[1][1];
-    double my_next = s + this->v;
-    double separation_next = next_pos - my_next;
+    double my_next = s + this->v*0.02;
+    double separation_next = next_pos - my_next;    
     double available_room = separation_next - preferred_buffer;
     max_acc = min(max_acc, available_room);
   }
@@ -249,13 +253,13 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double> > > predict
   map<int, vector<vector<double> > >::iterator it = predictions.begin();
   vector<vector<vector<double> > > at_behind;
   while(it != predictions.end()) {
-    int v_id = it->first;
     vector<vector<double> > v = it->second;
     if((v[0][0] == lane) && (v[0][1] <= this->s)) {
       at_behind.push_back(v);
     }
     it++;
   }
+
   if(at_behind.size() > 0) {
     double max_s = -1000;
     vector<vector<double> > nearest_behind = {};
@@ -286,8 +290,8 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double> > > predict
       this->a = a;
     }
     else {
-      double my_min_acc = max(-this->max_acceleration,-delta_s);
-      this->a = my_min_acc;
+      double min_acc = max(-this->max_acceleration,-delta_s);
+      this->a = min_acc;
     }
   }
 }
@@ -295,7 +299,7 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double> > > predict
 vector<vector<double> > Vehicle::generate_predictions(int horizon = 10) {
 	vector<vector<double> > predictions;
   for( int i = 0; i < horizon; i++) {
-    vector<double> check1 = state_at(i);
+    vector<double> check1 = state_at(0.02*i);
     vector<double> lane_s = {check1[0], check1[1]};
     predictions.push_back(lane_s);
   }
