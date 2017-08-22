@@ -270,14 +270,21 @@ int main() {
             double v = sqrt(vx*vx+vy*vy);
             s += (double)prev_size*0.02*v;
             Vehicle vehicle = Vehicle(lane, s, v*2.237, 0);
-            vehicles.insert(std::pair<int, Vehicle>(id, vehicle));
+            if (lane >= 0) vehicles.insert(std::pair<int, Vehicle>(id, vehicle));
           }
           // prediction
           map<int ,vector<vector<double>>> predictions;
           map<int,Vehicle>::iterator it = vehicles.begin();
           while(it != vehicles.end()) {
             int v_id = it->first;
-            vector<vector<double>> preds = it->second.generate_predictions(10);
+            vector<vector<double>> preds = it->second.generate_predictions(50);
+
+            // for (int i=0;i<preds.size();i++) {
+            //   cout << preds[i][1] << " ";
+            // }
+            // cout << endl;
+            cout << it->second.v << endl;
+
             predictions[v_id] = preds;
             it++;
           }
@@ -304,7 +311,7 @@ int main() {
             ptsy.push_back(previous_path_y[prev_size-2]);
             ptsy.push_back(ref_y);
           }
-          // waypoints          
+          // waypoints
           vector<double> next_wp0 = getXY(car_s+30, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp1 = getXY(car_s+60, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp2 = getXY(car_s+90, 2+4*ego.lane, map_waypoints_s, map_waypoints_x, map_waypoints_y);
