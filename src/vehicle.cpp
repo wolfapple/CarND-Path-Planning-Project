@@ -80,9 +80,8 @@ void Vehicle::update_state(map<int,vector < vector<double> > > predictions) {
 
   double min_cost = numeric_limits<double>::max();
   for (int i=0; i < states.size(); i++) {
-    vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 30);
+    vector<SnapShot> trajectory = trajectory_for_state(states[i], predictions, 49);
     double cost = calculate_cost(*this, trajectory, predictions);
-    cout << states[i] << ": " << trajectory.back().v << endl;
     if (cost < min_cost) {
       min_cost = cost;
       this->state = states[i];
@@ -99,8 +98,6 @@ vector<Vehicle::SnapShot> Vehicle::trajectory_for_state(string state, map<int, v
   trajectory.push_back(snapshot);
   
   for(int t=0; t < horizon; t++) {
-    // this->restore_from_snapshot(snapshot);
-    // this->state = state;
     this->realize_state(predictions);
     this->increment(0.02);
     trajectory.push_back(this->snapshot());
@@ -138,7 +135,6 @@ vector<double> Vehicle::state_at(double t) {
   */
   double s = this->s + this->v * t + this->a * t * t / 2;
   double v = this->v + this->a * t;
-  if (this->v > this->target_speed) this->v = this->target_speed;
   return {(double)this->lane, s, v, this->a};
 }
 
@@ -221,7 +217,7 @@ double Vehicle::_max_accel_for_lane(map<int,vector<vector<double> > > prediction
     }
     double next_pos = leading[1][1];
     double my_next = s + this->v*0.02;
-    double separation_next = next_pos - my_next;    
+    double separation_next = next_pos - my_next;
     double available_room = separation_next - preferred_buffer;
     max_acc = min(max_acc, available_room);
   }
@@ -269,7 +265,7 @@ void Vehicle::realize_prep_lane_change(map<int,vector<vector<double> > > predict
         nearest_behind = at_behind[i];
       }
     }
-    double target_vel = nearest_behind[1][1] - nearest_behind[0][1];
+    double target_vel = (nearest_behind[1][1] - nearest_behind[0][1]) / 0.02;
     double delta_v = this->v - target_vel;
     double delta_s = this->s - nearest_behind[0][1];
     if(delta_v != 0) {

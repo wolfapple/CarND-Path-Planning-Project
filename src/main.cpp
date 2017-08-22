@@ -276,15 +276,8 @@ int main() {
           map<int ,vector<vector<double>>> predictions;
           map<int,Vehicle>::iterator it = vehicles.begin();
           while(it != vehicles.end()) {
-            int v_id = it->first;
+            int v_id = it->first;            
             vector<vector<double>> preds = it->second.generate_predictions(50);
-
-            // for (int i=0;i<preds.size();i++) {
-            //   cout << preds[i][1] << " ";
-            // }
-            // cout << endl;
-            cout << it->second.v << endl;
-
             predictions[v_id] = preds;
             it++;
           }
