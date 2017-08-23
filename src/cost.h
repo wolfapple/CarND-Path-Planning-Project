@@ -6,7 +6,7 @@
 #define REACH_GOAL  10e5
 #define COMFORT     10e4
 #define EFFICIENCY  10e2
-#define DESIRED_BUFFER 1.2
+#define DESIRED_BUFFER 1.5
 #define PLANNING_HORIZON 25
 
 #include "vehicle.h"
@@ -80,7 +80,7 @@ map<int, vector< vector<double> > > filter_predictions_by_lane(map<int, vector< 
 bool check_collision(Vehicle::SnapShot snapshot, double s_previous, double s_now) {
   double s = snapshot.s;
   double v = snapshot.v;
-  double v_target = s_now - s_previous;
+  double v_target = (s_now - s_previous)/0.02;
   if (s_previous < s) {
     if (s_now >= s) return true;
     else return false;
@@ -124,7 +124,7 @@ TrajectoryData get_helper_data(Vehicle vehicle, vector<Vehicle::SnapShot> trajec
       bool collides = check_collision(snapshot, last_state[1], state[1]);
       if (collides) {
         collider.collision = true;
-        collider.time = i;
+        collider.time = i*0.02;
       }
       double dist = abs(state[1] - snapshot.s);
       if (dist < closest_approach) closest_approach = dist;
